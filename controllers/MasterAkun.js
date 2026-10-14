@@ -1,6 +1,6 @@
 import MasterAkun from "../models/MasterAkunModel.js";
 
-// Ambil semua data master akun (Semua role bisa akses)
+// Ambil semua master akun (Semua role bisa akses)
 export const getMasterAkuns = async (req, res) => {
     try {
         const response = await MasterAkun.findAll({
@@ -29,24 +29,7 @@ export const getMasterAkunByKode = async (req, res) => {
     }
 };
 
-// Tambah master akun manual (Hanya Superadmin)
-export const createMasterAkun = async (req, res) => {
-    try {
-        const { kode_akun, nama_akun } = req.body;
-
-        const existing = await MasterAkun.findOne({ where: { kode_akun } });
-        if (existing) {
-            return res.status(400).json({ msg: "Kode akun sudah terdaftar!" });
-        }
-
-        await MasterAkun.create({ kode_akun, nama_akun });
-        res.status(201).json({ msg: "Master akun berhasil ditambahkan" });
-    } catch (error) {
-        res.status(500).json({ msg: error.message });
-    }
-};
-
-// Update master akun (Hanya Superadmin)
+// Update nama master akun (Hanya Superadmin) - kode_akun tidak bisa diubah
 export const updateMasterAkun = async (req, res) => {
     try {
         const masterAkun = await MasterAkun.findOne({ where: { kode_akun: req.params.id } });
@@ -55,6 +38,10 @@ export const updateMasterAkun = async (req, res) => {
         }
 
         const { nama_akun } = req.body;
+        if (!nama_akun) {
+            return res.status(400).json({ msg: "Nama akun wajib diisi!" });
+        }
+
         await MasterAkun.update({ nama_akun }, { where: { kode_akun: req.params.id } });
 
         res.status(200).json({ msg: "Master akun berhasil diupdate" });

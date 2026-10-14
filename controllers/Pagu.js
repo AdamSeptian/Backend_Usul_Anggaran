@@ -8,7 +8,7 @@ export const getPagus = async (req, res) => {
         const response = await Pagus.findAll({
             include: [
                 { model: MasterPagus, attributes: ["jenis_pagu"] },
-                { model: UnitKerjas, attributes: ["kode_unit_kerja", "nama_unit_kerja"] }
+                { model: UnitKerjas, attributes: ["kode_unit_kerja", "unit_kerja"] }
             ],
             order: [['id', 'ASC']]
         });

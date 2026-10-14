@@ -6,6 +6,7 @@ import Programs from "./ProgramModel.js";
 import MasterSuboutputs from "./MasterSuboutputModel.js";
 import MasterSubkomponens from "./MasterSubkomponenModel.js";
 import MasterAkun from "./MasterAkunModel.js";
+import MasterKomponens from "./MasterKomponenModel.js";
 const { DataTypes } = Sequelize;
 
 const Akuns = db.define(
@@ -44,6 +45,13 @@ const Akuns = db.define(
         validate: {
             notEmpty: true,
         },
+    },
+    kode_komponen: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      references: { model: MasterKomponens, key: "kode_komponen" },
+      onUpdate: "CASCADE",
+      onDelete: "CASCADE",
     },
     kode_so: {
       type: DataTypes.STRING,
@@ -94,6 +102,12 @@ const Akuns = db.define(
 );
 Akuns.belongsTo(MasterAkun, { foreignKey: "kode_akun" });
 MasterAkun.hasMany(Akuns, { foreignKey: "kode_akun" });
+
+Akuns.belongsTo(MasterSubkomponens, { foreignKey: "kode_sk" });
+MasterSubkomponens.hasMany(Akuns, { foreignKey: "kode_sk" });
+
+Akuns.belongsTo(MasterKomponens, { foreignKey: "kode_komponen" });
+MasterKomponens.hasMany(Akuns, { foreignKey: "kode_komponen" });
 
 Akuns.belongsTo(MasterSuboutputs, { foreignKey: "kode_so" });
 MasterSuboutputs.hasMany(Akuns, { foreignKey: "kode_so" });

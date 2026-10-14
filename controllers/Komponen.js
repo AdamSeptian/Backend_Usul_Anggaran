@@ -2,8 +2,41 @@ import Komponens from "../models/KomponenModel.js";
 import MasterKomponens from "../models/MasterKomponenModel.js";
 import MasterSuboutputs from "../models/MasterSuboutputModel.js";
 import MasterOutputs from "../models/MasterOutputModel.js";
+import Suboutputs from "../models/SuboutputModel.js";
+import Outputs from "../models/OutputModel.js";
 import Kegiatans from "../models/KegiatanModel.js";
 import Programs from "../models/ProgramModel.js";
+
+// Helper internal untuk menyisipkan nama_suboutput dan nama_output secara akurat
+const attachHierarkiDetail = async (komponenData) => {
+    if (!komponenData) return null;
+    
+    const item = komponenData.toJSON ? komponenData.toJSON() : komponenData;
+
+    // 1. Cari detail nama_suboutput dari tabel suboutputs berdasarkan kode_so, kode_output, dan kode_kegiatan
+    const matchedSuboutput = await Suboutputs.findOne({
+        where: {
+            kode_so: item.kode_so,
+            kode_output: item.kode_output,
+            kode_kegiatan: item.kode_kegiatan
+        },
+        attributes: ["nama_suboutput"]
+    });
+
+    // 2. Cari detail nama_output dari tabel outputs berdasarkan kode_output dan kode_kegiatan
+    const matchedOutput = await Outputs.findOne({
+        where: {
+            kode_output: item.kode_output,
+            kode_kegiatan: item.kode_kegiatan
+        },
+        attributes: ["nama_output"]
+    });
+
+    item.suboutput_detail = matchedSuboutput ? { nama_suboutput: matchedSuboutput.nama_suboutput } : { nama_suboutput: null };
+    item.output_detail = matchedOutput ? { nama_output: matchedOutput.nama_output } : { nama_output: null };
+    
+    return item;
+};
 
 // 1. Ambil semua data komponen beserta relasinya
 export const getKomponens = async (req, res) => {
@@ -18,7 +51,12 @@ export const getKomponens = async (req, res) => {
             ],
             order: [['id', 'ASC']]
         });
-        res.status(200).json(response);
+
+        const results = await Promise.all(response.map(async (komp) => {
+            return await attachHierarkiDetail(komp);
+        }));
+
+        res.status(200).json(results);
     } catch (error) {
         res.status(500).json({ msg: "Gagal mengambil data komponen: " + error.message });
     }
@@ -42,36 +80,37 @@ export const getKomponenById = async (req, res) => {
             return res.status(404).json({ msg: "Komponen tidak ditemukan" });
         }
 
-        res.status(200).json(komponen);
+        const result = await attachHierarkiDetail(komponen);
+        res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
 };
 
-// 3. Tambah komponen + OTOMATIS daftarkan kode_komponen ke Master Komponens jika belum ada
+// 3. Tambah komponen + Validasi hierarki Suboutput & Otomatis ambil Program
 export const createKomponen = async (req, res) => {
     try {
-        const { nama_komponen, kode_komponen, kode_so, kode_output, kode_kegiatan, kode_program } = req.body;
+        const { nama_komponen, kode_komponen, kode_so, kode_output, kode_kegiatan } = req.body;
 
-        // Validasi relasi hierarki di atasnya
-        const soExists = await MasterSuboutputs.findOne({ where: { kode_so } });
-        if (!soExists) {
-            return res.status(404).json({ msg: "Kode suboutput tidak ditemukan!" });
+        // Validasi: Pastikan kombinasi kode_so, kode_output, dan kode_kegiatan valid di tabel Suboutputs
+        const suboutputTrans = await Suboutputs.findOne({
+            where: {
+                kode_so: kode_so,
+                kode_output: kode_output,
+                kode_kegiatan: kode_kegiatan
+            }
+        });
+
+        if (!suboutputTrans) {
+            return res.status(400).json({ 
+                msg: `Kombinasi Suboutput (${kode_so}), Output (${kode_output}), dan Kegiatan (${kode_kegiatan}) tidak ditemukan atau tidak cocok pada data Suboutput!` 
+            });
         }
 
-        const outputExists = await MasterOutputs.findOne({ where: { kode_output } });
-        if (!outputExists) {
-            return res.status(404).json({ msg: "Kode output tidak ditemukan!" });
-        }
-
-        const kegiatanExists = await Kegiatans.findOne({ where: { kode_kegiatan } });
-        if (!kegiatanExists) {
-            return res.status(404).json({ msg: "Kode kegiatan tidak ditemukan!" });
-        }
-
-        const programExists = await Programs.findOne({ where: { kode_program } });
-        if (!programExists) {
-            return res.status(404).json({ msg: "Kode program tidak ditemukan!" });
+        // Ambil kode_program secara otomatis dari data suboutput/kegiatan yang valid
+        const kode_program = suboutputTrans.kode_program;
+        if (!kode_program) {
+            return res.status(400).json({ msg: "Kode program pada relasi suboutput ini kosong!" });
         }
 
         // --- FITUR UTAMA: AUTO CREATE MASTER KOMPONEN ---
@@ -90,13 +129,16 @@ export const createKomponen = async (req, res) => {
             kode_program
         });
 
-        res.status(201).json({ msg: "Komponen berhasil ditambahkan dan Master Komponen disinkronkan!" });
+        res.status(201).json({ 
+            msg: "Komponen berhasil ditambahkan, Master Komponen disinkronkan, dan Kode Program terisi otomatis!",
+            kode_program_otomatis: kode_program
+        });
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
 };
 
-// 4. Update komponen + Sinkronisasi Master Komponen jika kode_komponen diubah
+// 4. Update komponen dengan validasi ketat hierarki suboutput
 export const updateKomponen = async (req, res) => {
     try {
         const komponen = await Komponens.findOne({ where: { id: req.params.id } });
@@ -106,7 +148,45 @@ export const updateKomponen = async (req, res) => {
 
         const { nama_komponen, kode_komponen, kode_so, kode_output, kode_kegiatan, kode_program } = req.body;
 
-        // Jika kode_komponen diubah/diisi, pastikan masuk ke master komponen
+        // Kunci kode_program agar tidak bisa diubah manual
+        if (kode_program) {
+            return res.status(400).json({ 
+                msg: "Kode program tidak dapat diubah secara manual! Kode program akan otomatis mengikuti hierarki suboutput/kegiatan." 
+            });
+        }
+
+        let finalKodeSo = kode_so || komponen.kode_so;
+        let finalKodeOutput = kode_output || komponen.kode_output;
+        let finalKodeKegiatan = kode_kegiatan || komponen.kode_kegiatan;
+        let finalKodeProgram = komponen.kode_program;
+
+        // Jika ada perubahan pada atribut hierarki (kode_so, kode_output, atau kode_kegiatan)
+        const isHierarchyChanged = 
+            (kode_so && kode_so !== komponen.kode_so) || 
+            (kode_output && kode_output !== komponen.kode_output) || 
+            (kode_kegiatan && kode_kegiatan !== komponen.kode_kegiatan);
+
+        if (isHierarchyChanged) {
+            // Wajib validasi kecocokan kombinasi baru ke tabel Suboutputs
+            const suboutputTrans = await Suboutputs.findOne({
+                where: {
+                    kode_so: finalKodeSo,
+                    kode_output: finalKodeOutput,
+                    kode_kegiatan: finalKodeKegiatan
+                }
+            });
+
+            if (!suboutputTrans) {
+                return res.status(400).json({ 
+                    msg: `Kombinasi baru (Suboutput: ${finalKodeSo}, Output: ${finalKodeOutput}, Kegiatan: ${finalKodeKegiatan}) tidak valid atau tidak cocok di tabel Suboutput!` 
+                });
+            }
+
+            // Ambil ulang kode_program yang sesuai secara otomatis
+            finalKodeProgram = suboutputTrans.kode_program;
+        }
+
+        // Jika kode_komponen diubah/diisi, sinkronkan ke master komponen
         if (kode_komponen) {
             await MasterKomponens.findOrCreate({
                 where: { kode_komponen: kode_komponen },
@@ -118,15 +198,23 @@ export const updateKomponen = async (req, res) => {
             {
                 nama_komponen: nama_komponen || komponen.nama_komponen,
                 kode_komponen: kode_komponen || komponen.kode_komponen,
-                kode_so: kode_so || komponen.kode_so,
-                kode_output: kode_output || komponen.kode_output,
-                kode_kegiatan: kode_kegiatan || komponen.kode_kegiatan,
-                kode_program: kode_program || komponen.kode_program,
+                kode_so: finalKodeSo,
+                kode_output: finalKodeOutput,
+                kode_kegiatan: finalKodeKegiatan,
+                kode_program: finalKodeProgram,
             },
             { where: { id: req.params.id } }
         );
 
-        res.status(200).json({ msg: "Komponen berhasil diupdate" });
+        res.status(200).json({ 
+            msg: "Komponen berhasil diupdate dengan validasi hierarki yang sesuai!",
+            data_terbaru: {
+                kode_so: finalKodeSo,
+                kode_output: finalKodeOutput,
+                kode_kegiatan: finalKodeKegiatan,
+                kode_program: finalKodeProgram
+            }
+        });
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
