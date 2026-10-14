@@ -1,6 +1,7 @@
 import { Sequelize } from "sequelize";
 import db from "../config/Database.js";
 import MasterOutputs from "./MasterOutputModel.js";
+import Outputs from "./OutputModel.js"; // <-- 1. Import model Outputs transaksi
 import Kegiatans from "./KegiatanModel.js";
 import Programs from "./ProgramModel.js";
 import MasterSuboutputs from "./MasterSuboutputModel.js";
@@ -71,11 +72,20 @@ const Suboutputs = db.define(
     freezeTableName: true,
   }
 );
+
 Suboutputs.belongsTo(MasterSuboutputs, { foreignKey: "kode_so" });
 MasterSuboutputs.hasMany(Suboutputs, { foreignKey: "kode_so" });
 
 Suboutputs.belongsTo(MasterOutputs, { foreignKey: "kode_output" });
 MasterOutputs.hasMany(Suboutputs, { foreignKey: "kode_output" });
+
+// --- 2. TAMBAHKAN RELASI KE OUTPUTS TRANSAKSI BERDASARKAN KODE_OUTPUT & KODE_KEGIATAN ---
+Suboutputs.belongsTo(Outputs, { 
+    as: "output_detail",
+    foreignKey: "kode_output",
+    targetKey: "kode_output",
+    constraints: false
+});
 
 Suboutputs.belongsTo(Kegiatans, { foreignKey: "kode_kegiatan" });
 Kegiatans.hasMany(Suboutputs, { foreignKey: "kode_kegiatan" });

@@ -32,7 +32,7 @@ const Pagus = db.define(
         },
     },
     nominal_pagu: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.BIGINT,
         allowNull: false,
         validate: {
             notEmpty: true,

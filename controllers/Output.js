@@ -42,30 +42,34 @@ export const getOutputById = async (req, res) => {
     }
 };
 
-// 3. Tambah output + OTOMATIS daftarkan kode_output ke Master Outputs jika belum ada
+// 3. Tambah output + OTOMATIS ambil kode_program dari Kegiatan yang dipilih
 export const createOutput = async (req, res) => {
     try {
-        const { nama_output, kode_output, kode_kegiatan, kode_program } = req.body;
+        const { nama_output, kode_output, kode_kegiatan } = req.body;
 
-        // Validasi relasi Kegiatan & Program
-        const kegiatanExists = await Kegiatans.findOne({ where: { kode_kegiatan } });
-        if (!kegiatanExists) {
+        // Validasi: Cek apakah kegiatan ada di database, sekaligus ambil kode_program-nya
+        const kegiatan = await Kegiatans.findOne({ where: { kode_kegiatan } });
+        if (!kegiatan) {
             return res.status(404).json({ msg: "Kode kegiatan tidak ditemukan!" });
         }
 
-        const programExists = await Programs.findOne({ where: { kode_program } });
-        if (!programExists) {
-            return res.status(404).json({ msg: "Kode program tidak ditemukan!" });
+        // Ambil kode_program secara otomatis dari data kegiatan yang dipilih
+        const kode_program = kegiatan.kode_program;
+
+        // Berikan pesan error jika ternyata kode_program di tabel kegiatan kosong/tidak terdaftar
+        if (!kode_program) {
+            return res.status(400).json({ 
+                msg: "Kode program pada kegiatan ini tidak ditemukan! Mohon lengkapi atau tambahkan data program pada tabel kegiatan terlebih dahulu." 
+            });
         }
 
         // --- FITUR UTAMA: AUTO CREATE MASTER OUTPUT ---
-        // Jika kode_output belum ada di tabel master_output, Sequelize akan otomatis membuatnya.
         await MasterOutputs.findOrCreate({
             where: { kode_output: kode_output },
             defaults: { kode_output: kode_output }
         });
 
-        // Simpan data output transaksi
+        // Simpan data output transaksi (kode_program otomatis terisi dari kegiatan)
         await Outputs.create({
             nama_output,
             kode_output,
@@ -73,13 +77,17 @@ export const createOutput = async (req, res) => {
             kode_program
         });
 
-        res.status(201).json({ msg: "Output berhasil ditambahkan dan Master Output disinkronkan!" });
+        res.status(201).json({ 
+            msg: "Output berhasil ditambahkan, Master Output disinkronkan, dan Kode Program terisi otomatis!",
+            kode_program_otomatis: kode_program
+        });
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
 };
 
-// 4. Update output + Update Master Output jika kodenya berubah
+// 4. Update output + Update otomatis kode_program jika kode_kegiatan diubah
+// 4. Update output (Kode program dikunci agar otomatis dari kegiatan, kode kegiatan bisa diubah)
 export const updateOutput = async (req, res) => {
     try {
         const output = await Outputs.findOne({ where: { id: req.params.id } });
@@ -88,6 +96,33 @@ export const updateOutput = async (req, res) => {
         }
 
         const { nama_output, kode_output, kode_kegiatan, kode_program } = req.body;
+
+        // Validasi: Jika user mencoba mengirim/mengubah kode_program secara manual lewat request
+        if (kode_program) {
+            return res.status(400).json({ 
+                msg: "Kode program tidak dapat diubah secara manual! Kode program akan otomatis mengikuti kode kegiatan yang dipilih." 
+            });
+        }
+
+        let finalKodeKegiatan = output.kode_kegiatan;
+        let finalKodeProgram = output.kode_program;
+
+        // Jika kode_kegiatan diubah oleh user, ambil otomatis kode_program yang baru dari kegiatan tersebut
+        if (kode_kegiatan && kode_kegiatan !== output.kode_kegiatan) {
+            const kegiatan = await Kegiatans.findOne({ where: { kode_kegiatan } });
+            if (!kegiatan) {
+                return res.status(404).json({ msg: "Kode kegiatan tujuan tidak ditemukan!" });
+            }
+
+            finalKodeKegiatan = kode_kegiatan;
+            finalKodeProgram = kegiatan.kode_program;
+
+            if (!finalKodeProgram) {
+                return res.status(400).json({ 
+                    msg: "Kode program pada kegiatan baru ini kosong! Mohon periksa kembali data kegiatan." 
+                });
+            }
+        }
 
         // Jika kode_output diubah, pastikan daftarkan juga ke master jika belum ada
         if (kode_output) {
@@ -101,13 +136,16 @@ export const updateOutput = async (req, res) => {
             {
                 nama_output: nama_output || output.nama_output,
                 kode_output: kode_output || output.kode_output,
-                kode_kegiatan: kode_kegiatan || output.kode_kegiatan,
-                kode_program: kode_program || output.kode_program,
+                kode_kegiatan: finalKodeKegiatan,
+                kode_program: finalKodeProgram, // Otomatis ikut berubah jika kegiatan berubah
             },
             { where: { id: req.params.id } }
         );
 
-        res.status(200).json({ msg: "Output berhasil diupdate" });
+        res.status(200).json({ 
+            msg: "Output berhasil diupdate!",
+            kode_program_terbaru: finalKodeProgram 
+        });
     } catch (error) {
         res.status(500).json({ msg: error.message });
     }
