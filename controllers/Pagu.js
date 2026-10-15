@@ -18,7 +18,25 @@ export const getPagus = async (req, res) => {
     }
 };
 
-// 2. Ambil pagu berdasarkan ID (Semua role bisa akses)
+// 2. Tambah pagu + OTOMATIS daftarkan jenis_pagu ke Master Pagus jika belum ada (Hanya Superadmin)
+export const getPaguByUnitKerja = async (req, res) => {
+    try {
+        const kode_unit_kerja = req.kodeUnitKerja; // Diambil dari middleware auth token
+
+        const paguUnit = await Pagus.findAll({
+            where: { kode_unit_kerja },
+            include: [
+                { model: MasterPagus, attributes: ["jenis_pagu"] },
+                { model: UnitKerjas, attributes: ["kode_unit_kerja", "unit_kerja"] }
+            ]
+        });
+
+        res.status(200).json(paguUnit);
+    } catch (error) {
+        res.status(500).json({ msg: "Gagal mengambil data pagu unit kerja: " + error.message });
+    }
+};
+// 3. Ambil pagu berdasarkan ID (Semua role bisa akses)
 export const getPaguById = async (req, res) => {
     try {
         const pagu = await Pagus.findOne({
@@ -39,7 +57,8 @@ export const getPaguById = async (req, res) => {
     }
 };
 
-// 3. Tambah pagu + OTOMATIS daftarkan jenis_pagu ke Master Pagus jika belum ada (Hanya Superadmin)
+// Ambil pagu yang tersedia khusus untuk unit kerja yang sedang login
+
 export const createPagu = async (req, res) => {
     try {
         const { jenis_pagu, nominal_pagu, kode_unit_kerja } = req.body;

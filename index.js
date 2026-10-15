@@ -110,8 +110,8 @@ const PORT = process.env.PORT || process.env.APP_PORT || 5000;
     await store.sync();
 
     // Sinkronisasi database model (menggabungkan db.sync dan listen dalam satu alur)
-    // await db.sync({ alter: true });
-    // console.log("Database synchronized successfully.");
+    await db.sync({ alter: true });
+    console.log("Database synchronized successfully.");
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);

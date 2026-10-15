@@ -34,6 +34,12 @@ const Pengajuans = db.define("pengajuan", {
     onUpdate: "CASCADE",
     onDelete: "CASCADE",
   },
+  // --- TAMBAHAN FIELD REKAPITULASI TOTAL NOMINAL PENGAJUAN ---
+  total_nominal_pengajuan: {
+    type: DataTypes.BIGINT,
+    allowNull: false,
+    defaultValue: 0,
+  },
   status: {
     type: DataTypes.ENUM('draft', 'pending', 'approved', 'rejected', 'revision'),
     defaultValue: 'draft',
@@ -49,5 +55,11 @@ const Pengajuans = db.define("pengajuan", {
 }, {
   freezeTableName: true,
 });
+
+Pengajuans.belongsTo(UnitKerjas, { foreignKey: "kode_unit_kerja" });
+UnitKerjas.hasMany(Pengajuans, { foreignKey: "kode_unit_kerja" });
+
+Pengajuans.belongsTo(Operators, { foreignKey: "operator_id" });
+Operators.hasMany(Pengajuans, { foreignKey: "operator_id" });
 
 export default Pengajuans;

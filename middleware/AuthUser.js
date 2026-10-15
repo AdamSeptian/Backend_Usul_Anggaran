@@ -92,7 +92,7 @@ export const superadminOnly = (req, res, next) => {
 
 // Hanya untuk Operator Unit atau Superadmin
 export const operatorUnitOnly = (req, res, next) => {
-    if (req.role !== "superadmin" && req.role !== "operator_unit") {
+    if (req.role !== "superadmin" && req.role !== "operator") {
         return res.status(403).json({ msg: "Akses terlarang! Khusus Operator Unit." });
     }
     next();
