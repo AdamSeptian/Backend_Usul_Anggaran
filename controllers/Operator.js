@@ -85,7 +85,7 @@ export const createOperator = async (req, res) => {
             return res.status(400).json({ msg: "Email sudah digunakan oleh operator lain!" });
         }
 
-        if ((role === "operator_unit" || role === "pimpinan_unit") && !kode_unit_kerja) {
+        if ((role === "operator" || role === "pimpinan_unit") && !kode_unit_kerja) {
             return res.status(400).json({ msg: "Operator Unit dan Pimpinan Unit wajib memilih Unit Kerja!" });
         }
 
