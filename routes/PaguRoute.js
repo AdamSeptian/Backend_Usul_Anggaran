@@ -14,8 +14,8 @@ const router = express.Router();
 // Route untuk melihat pagu khusus unit kerja yang sedang login (Harus diletakkan DI ATAS /pagus/:id agar tidak dianggap ID)
 router.get("/pagus/unit-kerja", verifyUser, getPaguByUnitKerja);
 
-router.get("/pagus", getPagus);
-router.get("/pagus/:id", getPaguById);
+router.get("/pagus", verifyUser, getPagus);
+router.get("/pagus/:id", verifyUser, getPaguById);
 
 router.post("/pagus", verifyUser, superadminOnly, createPagu);
 router.patch("/pagus/:id", verifyUser, superadminOnly, updatePagu);

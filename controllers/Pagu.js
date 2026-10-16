@@ -1,11 +1,13 @@
 import Pagus from "../models/PaguModel.js";
 import MasterPagus from "../models/MasterPaguModel.js";
 import UnitKerjas from "../models/UnitKerjaModel.js"; // Sesuaikan path jika berbeda
+import { paguScope } from "../services/paguScope.js";
 
 // 1. Ambil semua data pagu (Semua role bisa akses)
 export const getPagus = async (req, res) => {
     try {
         const response = await Pagus.findAll({
+            where: paguScope(req),
             include: [
                 { model: MasterPagus, attributes: ["jenis_pagu"] },
                 { model: UnitKerjas, attributes: ["kode_unit_kerja", "unit_kerja"] }
@@ -14,7 +16,7 @@ export const getPagus = async (req, res) => {
         });
         res.status(200).json(response);
     } catch (error) {
-        res.status(500).json({ msg: "Gagal mengambil data pagu: " + error.message });
+        res.status(error.status || 500).json({ msg: "Gagal mengambil data pagu: " + error.message });
     }
 };
 
@@ -22,6 +24,7 @@ export const getPagus = async (req, res) => {
 export const getPaguByUnitKerja = async (req, res) => {
     try {
         const kode_unit_kerja = req.kodeUnitKerja; // Diambil dari middleware auth token
+        if (kode_unit_kerja === null || kode_unit_kerja === undefined) return res.status(403).json({ msg: 'Akun Anda belum memiliki unit kerja. Hubungi administrator.' });
 
         const paguUnit = await Pagus.findAll({
             where: { kode_unit_kerja },
@@ -40,7 +43,7 @@ export const getPaguByUnitKerja = async (req, res) => {
 export const getPaguById = async (req, res) => {
     try {
         const pagu = await Pagus.findOne({
-            where: { id: req.params.id },
+            where: paguScope(req, req.params.id),
             include: [
                 { model: MasterPagus },
                 { model: UnitKerjas }
@@ -53,7 +56,7 @@ export const getPaguById = async (req, res) => {
 
         res.status(200).json(pagu);
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        res.status(error.status || 500).json({ msg: error.message });
     }
 };
 

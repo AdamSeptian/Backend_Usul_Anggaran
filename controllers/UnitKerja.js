@@ -1,4 +1,15 @@
 import UnitKerjas from "../models/UnitKerjaModel.js";
+import Operators from "../models/OperatorModel.js";
+import Pengajuans from "../models/PengajuanModel.js";
+import Pagus from "../models/PaguModel.js";
+import db from "../config/Database.js";
+import { createDeleteUnitService } from "../services/deleteUnit.js";
+
+const deleteUnusedUnit = createDeleteUnitService(db, UnitKerjas, [
+    { model: Operators, label: 'operator/pengguna' },
+    { model: Pengajuans, label: 'pengajuan anggaran' },
+    { model: Pagus, label: 'alokasi pagu' },
+]);
 
 // 1. Ambil semua data unit kerja (Semua role / publik bisa akses untuk keperluan dropdown)
 export const getUnitKerjas = async (req, res) => {
@@ -71,20 +82,9 @@ export const updateUnitKerja = async (req, res) => {
 // 5. Hapus unit kerja (Hanya Superadmin)
 export const deleteUnitKerja = async (req, res) => {
     try {
-        const unitKerja = await UnitKerjas.findOne({
-            where: { kode_unit_kerja: req.params.id }
-        });
-
-        if (!unitKerja) {
-            return res.status(404).json({ msg: "Data unit kerja tidak ditemukan" });
-        }
-
-        await UnitKerjas.destroy({
-            where: { kode_unit_kerja: req.params.id }
-        });
-
+        await deleteUnusedUnit(req.params.id);
         res.status(200).json({ msg: "Unit kerja berhasil dihapus" });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        res.status(error.status || 500).json({ msg: error.message });
     }
 };
