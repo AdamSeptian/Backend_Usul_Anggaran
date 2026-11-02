@@ -14,7 +14,6 @@ import IkuRoute from "./routes/IkuRoute.js";
 import JenisBelanjaRoute from "./routes/JenisBelanjaRoute.js";
 import KegiatanRoute from "./routes/KegiatanRoute.js";
 import KomponenRoute from "./routes/KomponenRoute.js";
-import MasterAkunRoute from "./routes/MasterAkunRoute.js";
 import MasterKomponenRoute from "./routes/MasterKomponenRoute.js";
 import MasterOutputRoute from "./routes/MasterOutputRoute.js";
 import MasterPaguRoute from "./routes/MasterPaguRoute.js";
@@ -75,7 +74,6 @@ app.use(IkuRoute);
 app.use(JenisBelanjaRoute);
 app.use(KegiatanRoute);
 app.use(KomponenRoute);
-app.use(MasterAkunRoute);
 app.use(MasterKomponenRoute);
 app.use(MasterOutputRoute);
 app.use(MasterPaguRoute);
@@ -112,8 +110,8 @@ const PORT = process.env.PORT || process.env.APP_PORT || 5000;
     await store.sync();
 
     // Sinkronisasi database model (menggabungkan db.sync dan listen dalam satu alur)
-    // await db.sync({ alter: true });
-    // console.log("Database synchronized successfully.");
+    await db.sync({ alter: true });
+    console.log("Database synchronized successfully.");
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);

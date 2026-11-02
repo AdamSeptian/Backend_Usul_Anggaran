@@ -1,7 +1,6 @@
 import Anggarans from "../models/AnggaranModel.js";
 import Pengajuans from "../models/PengajuanModel.js";
 import MasterSatuans from "../models/MasterSatuanModel.js";
-import MasterAkun from "../models/MasterAkunModel.js";
 import MasterSubkomponens from "../models/MasterSubkomponenModel.js";
 import MasterSuboutputs from "../models/MasterSuboutputModel.js";
 import MasterOutputs from "../models/MasterOutputModel.js";
@@ -12,6 +11,7 @@ import Subkomponens from "../models/SubkomponenModel.js";
 import Komponens from "../models/KomponenModel.js";
 import Suboutputs from "../models/SuboutputModel.js";
 import Outputs from "../models/OutputModel.js";
+import JenisBelanjas from "../models/JenisBelanjaModel.js";
 
 // Helper internal untuk menyisipkan detail nama hierarki secara presisi tanpa duplikasi
 const attachAnggaranHierarkiDetail = async (anggaranData) => {
@@ -19,8 +19,8 @@ const attachAnggaranHierarkiDetail = async (anggaranData) => {
     
     const item = anggaranData.toJSON ? anggaranData.toJSON() : anggaranData;
 
-    // 1. Cari nama_akun dari MasterAkun
-    const matchedMasterAkun = await MasterAkun.findOne({
+    // 1. Cari nama_akun langsung dari model Akuns
+    const matchedAkun = await Akuns.findOne({
         where: { kode_akun: item.kode_akun },
         attributes: ["nama_akun"]
     });
@@ -29,7 +29,6 @@ const attachAnggaranHierarkiDetail = async (anggaranData) => {
     const matchedSubkomponen = await Subkomponens.findOne({
         where: {
             kode_sk: item.kode_sk,
-            kode_komponen: item.kode_komponen,
             kode_so: item.kode_so,
             kode_output: item.kode_output,
             kode_kegiatan: item.kode_kegiatan
@@ -40,7 +39,6 @@ const attachAnggaranHierarkiDetail = async (anggaranData) => {
     // 3. Cari nama_komponen
     const matchedKomponen = await Komponens.findOne({
         where: {
-            kode_komponen: item.kode_komponen,
             kode_so: item.kode_so,
             kode_output: item.kode_output,
             kode_kegiatan: item.kode_kegiatan
@@ -67,7 +65,7 @@ const attachAnggaranHierarkiDetail = async (anggaranData) => {
         attributes: ["nama_output"]
     });
 
-    item.master_akun = matchedMasterAkun ? { kode_akun: item.kode_akun, nama_akun: matchedMasterAkun.nama_akun } : { kode_akun: item.kode_akun, nama_akun: null };
+    item.master_akun = matchedAkun ? { kode_akun: item.kode_akun, nama_akun: matchedAkun.nama_akun } : { kode_akun: item.kode_akun, nama_akun: null };
     item.subkomponen_detail = { nama_subkomponen: matchedSubkomponen ? matchedSubkomponen.nama_subkomponen : null };
     item.komponen_detail = { nama_komponen: matchedKomponen ? matchedKomponen.nama_komponen : null };
     item.suboutput_detail = { nama_suboutput: matchedSuboutput ? matchedSuboutput.nama_suboutput : null };
@@ -76,7 +74,7 @@ const attachAnggaranHierarkiDetail = async (anggaranData) => {
     return item;
 };
 
-// 1. Ambil semua rincian anggaran (Bisa difilter berdasarkan pengajuan_id via query params)
+// 1. Ambil semua rincian anggaran
 export const getAnggarans = async (req, res) => {
     try {
         const { pengajuan_id } = req.query;
@@ -90,12 +88,13 @@ export const getAnggarans = async (req, res) => {
             include: [
                 { model: Pengajuans, attributes: ["nomor_pengajuan", "status", "current_position"] },
                 { model: MasterSatuans, attributes: ["kode_satuan", "nama_satuan"] },
-                { model: MasterAkun, attributes: ["kode_akun", "nama_akun"] },
+                { model: Akuns, attributes: ["kode_akun", "nama_akun"] },
                 { model: MasterSubkomponens, attributes: ["kode_sk"] },
                 { model: MasterSuboutputs, attributes: ["kode_so"] },
                 { model: MasterOutputs, attributes: ["kode_output"] },
                 { model: Kegiatans, attributes: ["kode_kegiatan", "nama_kegiatan"] },
-                { model: Programs, attributes: ["kode_program", "nama_program"] }
+                { model: Programs, attributes: ["kode_program", "nama_program"] },
+                { model: JenisBelanjas, attributes: ["kode_jenis_belanja", "jenis_belanja"] }
             ],
             order: [['id', 'ASC']]
         });
@@ -118,12 +117,13 @@ export const getAnggaranById = async (req, res) => {
             include: [
                 { model: Pengajuans },
                 { model: MasterSatuans },
-                { model: MasterAkun },
+                { model: Akuns },
                 { model: MasterSubkomponens },
                 { model: MasterSuboutputs },
                 { model: MasterOutputs },
                 { model: Kegiatans },
-                { model: Programs }
+                { model: Programs },
+                { model: JenisBelanjas }
             ]
         });
 
@@ -138,18 +138,18 @@ export const getAnggaranById = async (req, res) => {
     }
 };
 
-// 3. Tambah rincian item anggaran baru (Memperbaiki pencarian pengajuan_id)
+// 3. Tambah rincian item anggaran baru
 export const createAnggaranItem = async (req, res) => {
     try {
         const {
             pengajuan_id,
+            kode_jenis_belanja,
             volume,
             kode_satuan,
             nama_satuan,
             nominal_satuan,
             kode_akun,
             kode_sk,
-            kode_komponen,
             kode_so,
             kode_output,
             kode_kegiatan,
@@ -161,7 +161,6 @@ export const createAnggaranItem = async (req, res) => {
             stat_revisi
         } = req.body;
 
-        // PERBAIKAN UTAMA: Gunakan { pengajuan_id } sesuai primary key tabel Pengajuans
         const pengajuan = await Pengajuans.findOne({ where: { pengajuan_id } });
         if (!pengajuan) {
             return res.status(404).json({ msg: "Nomor pengajuan induk tidak ditemukan!" });
@@ -171,10 +170,8 @@ export const createAnggaranItem = async (req, res) => {
             return res.status(403).json({ msg: "Pengajuan sudah diproses atau disetujui, item anggaran tidak dapat ditambahkan." });
         }
 
-        // Validasi & Ambil hierarki otomatis dari tabel Akuns
         const whereAkun = { kode_akun };
         if (kode_sk) whereAkun.kode_sk = kode_sk;
-        if (kode_komponen) whereAkun.kode_komponen = kode_komponen;
         if (kode_so) whereAkun.kode_so = kode_so;
         if (kode_output) whereAkun.kode_output = kode_output;
         if (kode_kegiatan) whereAkun.kode_kegiatan = kode_kegiatan;
@@ -187,13 +184,11 @@ export const createAnggaranItem = async (req, res) => {
         }
 
         const finalKodeSk = akunTrans.kode_sk;
-        const finalKodeKomponen = akunTrans.kode_komponen;
         const finalKodeSo = akunTrans.kode_so;
         const finalKodeOutput = akunTrans.kode_output;
         const finalKodeKegiatan = akunTrans.kode_kegiatan;
         const finalKodeProgram = akunTrans.kode_program;
 
-        // Auto-create Master Satuan jika belum ada
         if (kode_satuan) {
             await MasterSatuans.findOrCreate({
                 where: { kode_satuan },
@@ -205,6 +200,7 @@ export const createAnggaranItem = async (req, res) => {
 
         const newAnggaran = await Anggarans.create({
             pengajuan_id,
+            kode_jenis_belanja,
             nama_item: nama_item || null,
             volume,
             kode_satuan,
@@ -212,7 +208,6 @@ export const createAnggaranItem = async (req, res) => {
             total_nominal,
             kode_akun,
             kode_sk: finalKodeSk,
-            kode_komponen: finalKodeKomponen,
             kode_so: finalKodeSo,
             kode_output: finalKodeOutput,
             kode_kegiatan: finalKodeKegiatan,
@@ -251,12 +246,12 @@ export const updateAnggaranItem = async (req, res) => {
 
         const {
             volume,
+            kode_jenis_belanja,
             kode_satuan,
             nama_satuan,
             nominal_satuan,
             kode_akun,
             kode_sk,
-            kode_komponen,
             kode_so,
             kode_output,
             kode_kegiatan,
@@ -277,18 +272,16 @@ export const updateAnggaranItem = async (req, res) => {
 
         let finalKodeAkun = kode_akun || anggaran.kode_akun;
         let finalKodeSk = anggaran.kode_sk;
-        let finalKodeKomponen = anggaran.kode_komponen;
         let finalKodeSo = anggaran.kode_so;
         let finalKodeOutput = anggaran.kode_output;
         let finalKodeKegiatan = anggaran.kode_kegiatan;
         let finalKodeProgram = anggaran.kode_program;
 
-        const isAkunOrHierarchyChanged = (kode_akun && kode_akun !== anggaran.kode_akun) || kode_sk || kode_komponen || kode_so || kode_output || kode_kegiatan;
+        const isAkunOrHierarchyChanged = (kode_akun && kode_akun !== anggaran.kode_akun) || kode_sk || kode_so || kode_output || kode_kegiatan;
 
         if (isAkunOrHierarchyChanged) {
             const whereAkun = { kode_akun: finalKodeAkun };
             if (kode_sk) whereAkun.kode_sk = kode_sk;
-            if (kode_komponen) whereAkun.kode_komponen = kode_komponen;
             if (kode_so) whereAkun.kode_so = kode_so;
             if (kode_output) whereAkun.kode_output = kode_output;
             if (kode_kegiatan) whereAkun.kode_kegiatan = kode_kegiatan;
@@ -301,7 +294,6 @@ export const updateAnggaranItem = async (req, res) => {
             }
 
             finalKodeSk = akunTrans.kode_sk;
-            finalKodeKomponen = akunTrans.kode_komponen;
             finalKodeSo = akunTrans.kode_so;
             finalKodeOutput = akunTrans.kode_output;
             finalKodeKegiatan = akunTrans.kode_kegiatan;
@@ -316,12 +308,12 @@ export const updateAnggaranItem = async (req, res) => {
             {
                 nama_item: nama_item !== undefined ? nama_item : anggaran.nama_item,
                 volume: vol,
+                kode_jenis_belanja: kode_jenis_belanja !== undefined ? kode_jenis_belanja : anggaran.kode_jenis_belanja,
                 kode_satuan: kode_satuan || anggaran.kode_satuan,
                 nominal_satuan: nom,
                 total_nominal,
                 kode_akun: finalKodeAkun,
                 kode_sk: finalKodeSk,
-                kode_komponen: finalKodeKomponen,
                 kode_so: finalKodeSo,
                 kode_output: finalKodeOutput,
                 kode_kegiatan: finalKodeKegiatan,

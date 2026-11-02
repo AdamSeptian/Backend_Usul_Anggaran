@@ -70,17 +70,7 @@ const Komponens = db.define(
       },
         onUpdate: "CASCADE",
         onDelete: "CASCADE",
-    },
-    kode_program: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      references: {
-        model: Programs,
-        key: "kode_program",
-      },
-      onUpdate: "CASCADE",
-      onDelete: "CASCADE",
-    },},
+    }},
   {
     freezeTableName: true,
   }
@@ -96,8 +86,5 @@ MasterOutputs.hasMany(Komponens, { foreignKey: "kode_output" });
 
 Komponens.belongsTo(Kegiatans, { foreignKey: "kode_kegiatan" });
 Kegiatans.hasMany(Komponens, { foreignKey: "kode_kegiatan" });
-
-Komponens.belongsTo(Programs, { foreignKey: "kode_program" });
-Programs.hasMany(Komponens, { foreignKey: "kode_program" });
 
 export default Komponens;

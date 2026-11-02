@@ -67,7 +67,7 @@ export function createSubmitPengajuanService({ db, pengajuans, anggarans, pagus,
             const remaining = BigInt(balance.nominal_pagu);
             if (total > remaining) fail(409, `Total pengajuan melebihi sisa pagu ${source} sebesar Rp ${remaining.toLocaleString('id-ID')}. Muat ulang pagu atau kurangi rincian.`);
             const processed = await resolveSubmissionItems(calculated, { accounts, satuans }, transaction);
-            const record = await pengajuans.create({ nomor_pengajuan: nomor, operator_id: req.operatorId, kode_unit_kerja: req.kodeUnitKerja, total_nominal_pengajuan: total.toString(), jenis_pagu: source, pagu_id: balance.id, status: 'pending', current_position: 'pimpinan_unit' }, { transaction });
+            const record = await pengajuans.create({ nomor_pengajuan: nomor, operator_id: req.operatorId, kode_unit_kerja: req.kodeUnitKerja, total_nominal_pengajuan: total.toString(), jenis_pagu: source, pagu_id: balance.id, status: 'pending', current_position: 'pimpinan_unit', max_position: 'pimpinan_unit' }, { transaction });
             for (const item of processed) await anggarans.create({ ...item, pengajuan_id: record.pengajuan_id }, { transaction });
             const newBalance = (remaining - total).toString();
             await balance.update({ nominal_pagu: newBalance }, { transaction });
