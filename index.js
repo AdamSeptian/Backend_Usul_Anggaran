@@ -29,6 +29,7 @@ import ProgramRoute from "./routes/ProgramRoute.js";
 import SubkomponenRoute from "./routes/SubKomponenRoute.js";
 import SuboutputRoute from "./routes/SuboutputRoute.js";
 import UnitKerjaRoute from "./routes/UnitKerjaRoute.js";
+import DashboardRoute from "./routes/DashboardRoute.js";
 
 import db from "./config/Database.js";
 
@@ -89,6 +90,7 @@ app.use(ProgramRoute);
 app.use(SubkomponenRoute);
 app.use(SuboutputRoute);
 app.use(UnitKerjaRoute);
+app.use(DashboardRoute);
 
 // 404 Handler
 app.use((req, res) => {

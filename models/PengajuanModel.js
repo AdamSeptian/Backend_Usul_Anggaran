@@ -1,5 +1,6 @@
 import Operators from "./OperatorModel.js";
 import UnitKerjas from "./UnitKerjaModel.js";
+import Pagus from "./PaguModel.js";
 import { Sequelize } from "sequelize";
 import db from "../config/Database.js";
 const { DataTypes } = Sequelize;
@@ -39,6 +40,11 @@ const Pengajuans = db.define("pengajuan", {
     type: DataTypes.BIGINT,
     allowNull: false,
     defaultValue: 0,
+  },
+  jenis_pagu: { type: DataTypes.STRING, allowNull: true },
+  pagu_id: {
+    type: DataTypes.INTEGER, allowNull: true,
+    references: { model: Pagus, key: 'id' }, onUpdate: 'CASCADE', onDelete: 'RESTRICT',
   },
   status: {
     type: DataTypes.ENUM('draft', 'pending', 'approved', 'rejected', 'revision'),
