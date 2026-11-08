@@ -8,6 +8,8 @@ import MasterSubkomponens from "./MasterSubkomponenModel.js";
 import Pengajuans from "./PengajuanModel.js";
 import MasterSatuans from "./MasterSatuanModel.js";
 import JenisBelanjas from "./JenisBelanjaModel.js";
+import MasterKomponens from "./MasterKomponenModel.js";
+import Ikus from "./IkuModel.js";
 import Akuns from "./AkunModel.js";
 const { DataTypes } = Sequelize;
 
@@ -35,6 +37,18 @@ const Anggarans = db.define(
         notEmpty: true,
       },
     },
+    nama_item: { type: DataTypes.STRING, allowNull: true },
+    kode_komponen: {
+      type: DataTypes.STRING, allowNull: true,
+      references: { model: MasterKomponens, key: "kode_komponen" },
+      onUpdate: "CASCADE", onDelete: "RESTRICT",
+    },
+    kode_iku: {
+      type: DataTypes.STRING, allowNull: true,
+      references: { model: Ikus, key: "kode_iku" },
+      onUpdate: "CASCADE", onDelete: "RESTRICT",
+    },
+    target_iku: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
     kode_jenis_belanja: {
       type: DataTypes.INTEGER,
       allowNull: false,

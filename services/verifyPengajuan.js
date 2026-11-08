@@ -4,7 +4,7 @@ const backward = { pimpinan_unit: 'operator', tim_sakip: 'pimpinan_unit', spi: '
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
 
-export function createVerifyPengajuanService(db, pengajuans) {
+export function createVerifyPengajuanService(db, pengajuans, audit) {
     return async (req, body = {}) => {
         if (!Object.hasOwn(forward, req.role)) fail(403, 'Keputusan hanya tersedia untuk Pimpinan Unit, SAKIP, SPI, dan KPA.');
         if (!['approve', 'revise', 'reject'].includes(body.action)) fail(400, 'Aksi verifikasi tidak valid.');
@@ -48,6 +48,12 @@ export function createVerifyPengajuanService(db, pengajuans) {
                 status, 
                 catatan_revisi: approving ? record.catatan_revisi : note 
             }, { transaction });
+
+            await audit?.(req, {
+                module: 'Pemeriksaan', action: approving ? 'SETUJUI' : 'KEMBALIKAN',
+                target: record.nomor_pengajuan, pengajuan_id: record.pengajuan_id,
+                before: req.role, after: nextPosition, note: note || null,
+            }, transaction);
 
             return {
                 msg: approving ? (nextPosition === 'completed' ? 'Pengajuan disetujui final oleh KPA.' : 'Pengajuan disetujui dan diteruskan ke tahap berikutnya.') : 'Pengajuan dikembalikan satu tahap dengan catatan revisi.',

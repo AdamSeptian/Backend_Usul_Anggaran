@@ -11,9 +11,24 @@ import { createSubmitPengajuanService } from "../services/submitPengajuan.js";
 import { createVerifyPengajuanService } from "../services/verifyPengajuan.js";
 import { createResubmitPengajuanService } from "../services/resubmitPengajuan.js";
 
-const submitPengajuan = createSubmitPengajuanService({ db: Pengajuans.sequelize, pengajuans: Pengajuans, anggarans: Anggarans, pagus: Pagus, units: UnitKerjas, accounts: Akuns, satuans: MasterSatuans });
-const verifySubmission = createVerifyPengajuanService(Pengajuans.sequelize, Pengajuans);
-const resubmitSubmission = createResubmitPengajuanService({ db: Pengajuans.sequelize, pengajuans: Pengajuans, anggarans: Anggarans, pagus: Pagus, units: UnitKerjas, accounts: Akuns, satuans: MasterSatuans });
+import JenisBelanjas from "../models/JenisBelanjaModel.js";
+import Subkomponens from "../models/MasterSubkomponenModel.js";
+import Suboutputs from "../models/SuboutputModel.js";
+import Komponens from "../models/KomponenModel.js";
+import Kegiatans from "../models/KegiatanModel.js";
+import Ikus from "../models/IkuModel.js";
+
+import { recordAudit } from "../services/auditLog.js";
+
+const references = {
+    accounts: Akuns, satuans: MasterSatuans, spendingTypes: JenisBelanjas,
+    subcomponents: Subkomponens, suboutputs: Suboutputs, components: Komponens,
+    activities: Kegiatans, indicators: Ikus,
+};
+
+const submitPengajuan = createSubmitPengajuanService({ db: Pengajuans.sequelize, pengajuans: Pengajuans, anggarans: Anggarans, pagus: Pagus, units: UnitKerjas, references, audit: recordAudit });
+const verifySubmission = createVerifyPengajuanService(Pengajuans.sequelize, Pengajuans, recordAudit);
+const resubmitSubmission = createResubmitPengajuanService({ db: Pengajuans.sequelize, pengajuans: Pengajuans, anggarans: Anggarans, pagus: Pagus, units: UnitKerjas, references, audit: recordAudit });
 
 export const resubmitPengajuan = async (req, res) => {
     try { res.status(200).json(await resubmitSubmission(req, req.body)); }
@@ -27,12 +42,22 @@ const readIncludes = [
 
 export const getPengajuans = async (req, res) => {
     try {
+        const forReport = req.query.include === 'report-items';
         const response = await Pengajuans.findAll({
             where: pengajuanScope(req, Op.in),
-            include: readIncludes,
+            include: forReport ? [...readIncludes, {
+                model: Anggarans,
+                attributes: ['id', 'nama_item', 'kode_akun', 'kode_sk', 'kode_iku', 'target_iku', 'total_nominal'],
+                include: [{ model: JenisBelanjas, attributes: ['jenis_belanja'] }],
+            }] : readIncludes,
             order: [['pengajuan_id', 'DESC']],
         });
-        res.status(200).json(response);
+        if (!forReport) return res.status(200).json(response);
+        const itemKey = Anggarans.options.name.plural;
+        res.json(response.map(record => {
+            const { [itemKey]: items, ...submission } = record.toJSON();
+            return { ...submission, items };
+        }));
     } catch (error) {
         res.status(error.status || 500).json({ msg: error.message });
     }

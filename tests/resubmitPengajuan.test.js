@@ -4,7 +4,7 @@ import { createResubmitPengajuanService } from '../services/resubmitPengajuan.js
 
 const stamp = '2026-10-29T01:00:00.000Z';
 const req = { role: 'operator', kodeUnitKerja: 7, params: { id: '1' } };
-const request = total => ({ expected_updated_at: stamp, expected_total: '80', items: [{ akun_id: '1', kode_satuan: 'PKT', volume: '1', nominal_satuan: total }] });
+const request = (total, activity = '7732') => ({ expected_updated_at: stamp, expected_total: '80', items: [{ kode_akun: '521211', kode_sk: 'A', kode_komponen: '004', kode_so: '001', kode_output: 'BEI', kode_kegiatan: activity, kode_program: 'DK', kode_iku: 'IKU 1', target_iku: '82', kode_jenis_belanja: '2', nama_item: 'Belanja bahan', kode_satuan: 'PKT', volume: '1', nominal_satuan: total }] });
 
 function fixture({ legacy = false, failed = false, invalidAccount = false, failTargetUpdate = false, targetBalance = '200', record: overrides = {} } = {}) {
     const state = {
@@ -43,9 +43,12 @@ function fixture({ legacy = false, failed = false, invalidAccount = false, failT
         async destroy(options) { verify(options); assert.equal(options.where.pengajuan_id, 1); state.items = []; },
         async create(values, options) { verify(options); state.items.push(values); if (failed) throw new Error('Rincian gagal'); },
     };
-    const accounts = { async findOne(options) { verify(options); return invalidAccount ? null : { kode_akun: '521211', kode_sk: 'A', kode_so: '001', kode_output: 'BEI', kode_kegiatan: '7731', kode_program: 'DK' }; } };
+    const accounts = { async findByPk(code, options) { verify(options); return invalidAccount ? null : { kode_akun: code }; } };
     const satuans = { async findByPk(code, options) { verify(options); return { kode_satuan: code }; } };
-    return { resubmit: createResubmitPengajuanService({ db, pengajuans, anggarans, pagus, units, accounts, satuans }), state };
+    const byPk = { async findByPk(code, options) { verify(options); return code; } };
+    const byFields = { async findOne(options) { verify(options); return options.where; } };
+    const references = { accounts, satuans, spendingTypes: byPk, subcomponents: byPk, indicators: byPk, suboutputs: byFields, components: byFields, activities: byFields };
+    return { resubmit: createResubmitPengajuanService({ db, pengajuans, anggarans, pagus, units, references }), state };
 }
 
 test('revisi nominal sama tidak memotong pagu lagi dan memakai pengajuan yang sama', async () => {
@@ -105,7 +108,7 @@ test('dua pengiriman ulang bersamaan hanya berhasil sekali', async () => {
 
 test('pindah sumber mengembalikan nominal lama ke asal dan mengurangi total baru dari tujuan', async () => {
     const { resubmit, state } = fixture();
-    await resubmit(req, { ...request('90'), jenis_pagu: 'RM' });
+    await resubmit(req, { ...request('90', '7734'), jenis_pagu: 'RM' });
     assert.equal(state.balance, '100');
     assert.equal(state.targetBalance, '110');
     assert.equal(state.record.pagu_id, 22);
@@ -116,7 +119,7 @@ test('saldo tujuan kurang atau update tujuan gagal membatalkan kedua saldo dan r
     for (const options of [{ targetBalance: '50' }, { failTargetUpdate: true }]) {
         const { resubmit, state } = fixture(options);
         const before = structuredClone(state);
-        await assert.rejects(resubmit(req, { ...request('90'), jenis_pagu: 'RM' }));
+        await assert.rejects(resubmit(req, { ...request('90', '7734'), jenis_pagu: 'RM' }));
         assert.deepEqual(state, before);
     }
 });
@@ -130,5 +133,5 @@ test('alias sumber yang menunjuk pagu sama tidak menyebabkan pengembalian ganda'
 });
 
 test('sumber asal belum tercatat tidak boleh dipindah hanya dengan memilih tujuan', async () => {
-    await assert.rejects(fixture({ legacy: true }).resubmit(req, { ...request('80'), jenis_pagu: 'RM' }), error => error.status === 409);
+    await assert.rejects(fixture({ legacy: true }).resubmit(req, { ...request('80', '7734'), jenis_pagu: 'RM' }), error => error.status === 409);
 });

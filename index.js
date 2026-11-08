@@ -31,6 +31,8 @@ import UnitKerjaRoute from "./routes/UnitKerjaRoute.js";
 import DashboardRoute from "./routes/DashboardRoute.js";
 
 import db from "./config/Database.js";
+import AuditLogRoute from "./routes/AuditLogRoute.js";
+import { auditManagement } from "./services/auditLog.js";
 
 const app = express();
 const SequelizeStoreSession = SequelizeStore(session.Store);
@@ -67,7 +69,10 @@ app.use(
 // app.use(FileUpload());
 app.use(express.json());
 
+app.use(auditManagement);
+
 // --- ROUTES ---
+app.use(AuditLogRoute);
 app.use(AkunRoute);
 app.use(AnggaranRoute);
 app.use(IkuRoute);
