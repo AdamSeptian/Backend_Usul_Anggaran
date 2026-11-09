@@ -1,5 +1,6 @@
 import Operators from "../models/OperatorModel.js";
 import UnitKerjas from "../models/UnitKerjaModel.js";
+import Pengajuans from "../models/PengajuanModel.js";
 import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
 import { Op } from "sequelize"; // <-- Tambahkan Op untuk pengecekan email saat update
@@ -196,21 +197,24 @@ export const updateOperator = async (req, res) => {
 // 5. Hapus operator (Hanya Superadmin)
 export const deleteOperator = async (req, res) => {
     try {
-        const operator = await Operators.findOne({ where: { id: req.params.id } });
-        if (!operator) {
-            return res.status(404).json({ msg: "Operator tidak ditemukan" });
-        }
-
-        // Pencegahan agar superadmin utama tidak menghapus dirinya sendiri
-        if (req.operatorId === operator.id) {
-            return res.status(400).json({ msg: "Anda tidak dapat menghapus akun yang sedang digunakan saat ini!" });
-        }
-
-        await Operators.destroy({ where: { id: req.params.id } });
-
+        await Operators.sequelize.transaction(async transaction => {
+            const operator = await Operators.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+            if (!operator) throw Object.assign(new Error("Operator tidak ditemukan"), { status: 404 });
+            if (String(req.operatorId) === String(operator.id)) {
+                throw Object.assign(new Error("Anda tidak dapat menghapus akun yang sedang digunakan saat ini!"), { status: 400 });
+            }
+            const submission = await Pengajuans.findOne({
+                where: { operator_id: operator.id }, attributes: ["pengajuan_id"],
+                transaction, lock: transaction.LOCK.UPDATE,
+            });
+            if (submission) {
+                throw Object.assign(new Error("Akun masih memiliki pengajuan dan tidak dapat dihapus."), { status: 409 });
+            }
+            await operator.destroy({ transaction });
+        });
         res.status(200).json({ msg: "Operator berhasil dihapus" });
     } catch (error) {
-        res.status(500).json({ msg: error.message });
+        res.status(error.status || 500).json({ msg: error.message });
     }
 };
 
