@@ -31,6 +31,8 @@ import UnitKerjaRoute from "./routes/UnitKerjaRoute.js";
 import DashboardRoute from "./routes/DashboardRoute.js";
 
 import db from "./config/Database.js";
+import UnitKerjas from "./models/UnitKerjaModel.js";
+import { fillOfficialUnitCodes } from "./services/unitCodes.js";
 import AuditLogRoute from "./routes/AuditLogRoute.js";
 import { auditManagement } from "./services/auditLog.js";
 
@@ -116,6 +118,7 @@ const PORT = process.env.PORT || process.env.APP_PORT || 5000;
 
     // Sinkronisasi database model (menggabungkan db.sync dan listen dalam satu alur)
     await db.sync({ alter: true });
+    await fillOfficialUnitCodes(UnitKerjas);
     console.log("Database synchronized successfully.");
 
     app.listen(PORT, "0.0.0.0", () => {

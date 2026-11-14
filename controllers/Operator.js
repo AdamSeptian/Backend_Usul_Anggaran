@@ -5,6 +5,9 @@ import bcrypt from 'bcryptjs';
 import jwt from "jsonwebtoken";
 import { Op } from "sequelize"; // <-- Tambahkan Op untuk pengecekan email saat update
 
+const accountRoles = new Set(["operator", "pimpinan_unit", "tim_sakip", "spi", "kpa", "superadmin"]);
+const requiresUnit = role => role === "operator" || role === "pimpinan_unit";
+
 // Helper: validasi kode unit kerja & kecocokan nama unit kerja
 const normalisasi = (teks) => String(teks).trim().replace(/\s+/g, " ").toLowerCase();
 
@@ -76,6 +79,8 @@ export const createOperator = async (req, res) => {
     try {
         const { email, password, confPassword, role, kode_unit_kerja, unit_kerja, nama_operator } = req.body;
 
+        if (!accountRoles.has(role)) return res.status(400).json({ msg: "Peran akun tidak valid." });
+
         if (password !== confPassword) {
             return res.status(400).json({ msg: "Password dan Konfirmasi Password tidak cocok!" });
         }
@@ -86,7 +91,7 @@ export const createOperator = async (req, res) => {
             return res.status(400).json({ msg: "Email sudah digunakan oleh operator lain!" });
         }
 
-        if ((role === "operator" || role === "pimpinan_unit") && !kode_unit_kerja) {
+        if (requiresUnit(role) && !kode_unit_kerja) {
             return res.status(400).json({ msg: "Operator Unit dan Pimpinan Unit wajib memilih Unit Kerja!" });
         }
 
@@ -135,6 +140,16 @@ export const updateOperator = async (req, res) => {
 
         const { email, password, confPassword, role, kode_unit_kerja, unit_kerja, nama_operator } = req.body;
 
+        const finalRole = role === undefined ? operator.role : role;
+        if (!accountRoles.has(finalRole)) return res.status(400).json({ msg: "Peran akun tidak valid." });
+        if (String(req.operatorId) === String(operator.id) && finalRole !== operator.role) {
+            return res.status(400).json({ msg: "Anda tidak dapat mengubah peran akun yang sedang digunakan." });
+        }
+        const finalKodeUnit = kode_unit_kerja !== undefined ? kode_unit_kerja : operator.kode_unit_kerja;
+        if (requiresUnit(finalRole) && !finalKodeUnit) {
+            return res.status(400).json({ msg: "Operator dan Pimpinan Unit wajib memilih unit kerja." });
+        }
+
         // PENGKONDISIAN CEK DUPLIKASI EMAIL SAAT UPDATE
         if (email && email !== operator.email) {
             const existingEmail = await Operators.findOne({ 
@@ -156,7 +171,7 @@ export const updateOperator = async (req, res) => {
             hashPassword = await bcrypt.hash(password, 10);
         }
 
-        const finalKodeUnit = kode_unit_kerja !== undefined ? kode_unit_kerja : operator.kode_unit_kerja;
+
 
         // Validasi unit kerja bila kode diisi (atau nama dikirim untuk dicocokkan)
         let unitTerisi = null;
@@ -172,7 +187,7 @@ export const updateOperator = async (req, res) => {
             {
                 email: email || operator.email,
                 password: hashPassword,
-                role: role || operator.role,
+                role: finalRole,
                 kode_unit_kerja: finalKodeUnit,
                 nama_operator: nama_operator || operator.nama_operator
             },
@@ -184,7 +199,7 @@ export const updateOperator = async (req, res) => {
             data: {
                 email: email || operator.email,
                 nama_operator: nama_operator || operator.nama_operator,
-                role: role || operator.role,
+                role: finalRole,
                 kode_unit_kerja: finalKodeUnit,
                 unit_kerja: unitTerisi ? unitTerisi.unit_kerja : null
             }
