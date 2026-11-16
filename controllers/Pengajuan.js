@@ -43,8 +43,12 @@ const readIncludes = [
 export const getPengajuans = async (req, res) => {
     try {
         const forReport = req.query.include === 'report-items';
+        const reportWhere = pengajuanScope(req, Op.in);
+        if (req.query.printable === 'kpa') {
+            reportWhere.status = 'approved';
+        }
         const response = await Pengajuans.findAll({
-            where: pengajuanScope(req, Op.in),
+            where: reportWhere,
             include: forReport ? [...readIncludes, {
                 model: Anggarans,
                 attributes: ['id', 'nama_item', 'kode_akun', 'kode_sk', 'kode_iku', 'target_iku', 'total_nominal'],

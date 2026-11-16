@@ -42,15 +42,21 @@ const masterSources = [
 export async function getBudgetDetailReport(req, res) {
     try {
         const unit = budgetDetailScope(req.role, req.kodeUnitKerja, req.query.unit);
-        const where = unit === null ? {} : { kode_unit_kerja: unit };
+        // Dokumen cetak hanya memuat pengajuan yang sudah disetujui final oleh KPA.
+        // Pengajuan yang masih berjalan atau kembali revisi tidak masuk laporan cetak.
+        const unitWhere = unit === null ? {} : { kode_unit_kerja: unit };
+        const where = {
+            ...unitWhere,
+            status: "approved",
+        };
         const result = await Pengajuans.sequelize.transaction(async transaction => {
             const units = await Units.findAll({
-                where, attributes: ["kode_unit_kerja", "unit_kerja"], order: [["unit_kerja", "ASC"]], transaction,
+                where: unitWhere, attributes: ["kode_unit_kerja", "unit_kerja"], order: [["unit_kerja", "ASC"]], transaction,
             });
             if (unit !== null && !units.length) throw Object.assign(new Error("Unit kerja tidak ditemukan."), { status: 404 });
             const submissions = await Pengajuans.findAll({
                 where,
-                attributes: ["pengajuan_id", "nomor_pengajuan", "kode_unit_kerja", "jenis_pagu", "status"],
+                attributes: ["pengajuan_id", "nomor_pengajuan", "kode_unit_kerja", "jenis_pagu", "status", "current_position"],
                 include: [{
                     model: Anggarans,
                     attributes: ["id", "nama_item", "kode_program", "kode_kegiatan", "kode_output", "kode_so",
