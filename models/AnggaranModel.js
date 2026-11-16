@@ -5,9 +5,12 @@ import Kegiatans from "./KegiatanModel.js";
 import Programs from "./ProgramModel.js";
 import MasterSuboutputs from "./MasterSuboutputModel.js";
 import MasterSubkomponens from "./MasterSubkomponenModel.js";
-import MasterAkun from "./MasterAkunModel.js";
 import Pengajuans from "./PengajuanModel.js";
 import MasterSatuans from "./MasterSatuanModel.js";
+import JenisBelanjas from "./JenisBelanjaModel.js";
+import MasterKomponens from "./MasterKomponenModel.js";
+import Ikus from "./IkuModel.js";
+import Akuns from "./AkunModel.js";
 const { DataTypes } = Sequelize;
 
 const Anggarans = db.define(
@@ -27,6 +30,31 @@ const Anggarans = db.define(
       references: {
         model: Pengajuans,
         key: "pengajuan_id",
+      },
+      onUpdate: "CASCADE",
+      onDelete: "CASCADE",
+      validate: {
+        notEmpty: true,
+      },
+    },
+    nama_item: { type: DataTypes.STRING, allowNull: true },
+    kode_komponen: {
+      type: DataTypes.STRING, allowNull: true,
+      references: { model: MasterKomponens, key: "kode_komponen" },
+      onUpdate: "CASCADE", onDelete: "RESTRICT",
+    },
+    kode_iku: {
+      type: DataTypes.STRING, allowNull: true,
+      references: { model: Ikus, key: "kode_iku" },
+      onUpdate: "CASCADE", onDelete: "RESTRICT",
+    },
+    target_iku: { type: DataTypes.DECIMAL(5, 2), allowNull: true },
+    kode_jenis_belanja: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: JenisBelanjas,
+        key: "kode_jenis_belanja",
       },
       onUpdate: "CASCADE",
       onDelete: "CASCADE",
@@ -72,7 +100,7 @@ const Anggarans = db.define(
       type: DataTypes.STRING,
       allowNull: false,
       references: {
-        model: MasterAkun,
+        model: Akuns,
         key: "kode_akun",
       },
       onUpdate: "CASCADE",
@@ -155,11 +183,14 @@ const Anggarans = db.define(
 Anggarans.belongsTo(Pengajuans, { foreignKey: "pengajuan_id" });
 Pengajuans.hasMany(Anggarans, { foreignKey: "pengajuan_id" });
 
+Anggarans.belongsTo(JenisBelanjas, { foreignKey: "kode_jenis_belanja" });
+JenisBelanjas.hasMany(Anggarans, { foreignKey: "kode_jenis_belanja" });
+
 Anggarans.belongsTo(MasterSatuans, { foreignKey: "kode_satuan" });
 MasterSatuans.hasMany(Anggarans, { foreignKey: "kode_satuan" });
 
-Anggarans.belongsTo(MasterAkun, { foreignKey: "kode_akun" });
-MasterAkun.hasMany(Anggarans, { foreignKey: "kode_akun" });
+Anggarans.belongsTo(Akuns, { foreignKey: "kode_akun" });
+Akuns.hasMany(Anggarans, { foreignKey: "kode_akun" });
 
 Anggarans.belongsTo(MasterSubkomponens, { foreignKey: "kode_sk" });
 MasterSubkomponens.hasMany(Anggarans, { foreignKey: "kode_sk" });

@@ -54,6 +54,10 @@ const Pengajuans = db.define("pengajuan", {
     type: DataTypes.ENUM('operator', 'pimpinan_unit', 'tim_sakip', 'spi', 'kpa', 'completed'),
     defaultValue: 'operator',
   },
+  max_position: {
+  type: DataTypes.ENUM('pimpinan_unit', 'tim_sakip', 'spi', 'kpa', 'completed'),
+  defaultValue: 'pimpinan_unit',
+  },
   catatan_revisi: {
     type: DataTypes.TEXT,
     allowNull: true,

@@ -13,6 +13,7 @@ const UnitKerjas = db.define(
         notEmpty: true,
       },
     },
+    kode_unit: { type: DataTypes.STRING(1), allowNull: true, unique: "unit_kerja_kode_unit_unique" },
     unit_kerja: {
         type: DataTypes.STRING,
         allowNull: false,

@@ -6,15 +6,29 @@ import Operators from "../models/OperatorModel.js";
 import Pagus from "../models/PaguModel.js";
 import { Op } from "sequelize";
 import { pengajuanScope } from "../services/pengajuanScope.js";
-import MasterAkun from "../models/MasterAkunModel.js";
 import Akuns from "../models/AkunModel.js";
 import { createSubmitPengajuanService } from "../services/submitPengajuan.js";
 import { createVerifyPengajuanService } from "../services/verifyPengajuan.js";
 import { createResubmitPengajuanService } from "../services/resubmitPengajuan.js";
 
-const submitPengajuan = createSubmitPengajuanService({ db: Pengajuans.sequelize, pengajuans: Pengajuans, anggarans: Anggarans, pagus: Pagus, units: UnitKerjas, accounts: Akuns, satuans: MasterSatuans });
-const verifySubmission = createVerifyPengajuanService(Pengajuans.sequelize, Pengajuans);
-const resubmitSubmission = createResubmitPengajuanService({ db: Pengajuans.sequelize, pengajuans: Pengajuans, anggarans: Anggarans, pagus: Pagus, units: UnitKerjas, accounts: Akuns, satuans: MasterSatuans });
+import JenisBelanjas from "../models/JenisBelanjaModel.js";
+import Subkomponens from "../models/MasterSubkomponenModel.js";
+import Suboutputs from "../models/SuboutputModel.js";
+import Komponens from "../models/KomponenModel.js";
+import Kegiatans from "../models/KegiatanModel.js";
+import Ikus from "../models/IkuModel.js";
+
+import { recordAudit } from "../services/auditLog.js";
+
+const references = {
+    accounts: Akuns, satuans: MasterSatuans, spendingTypes: JenisBelanjas,
+    subcomponents: Subkomponens, suboutputs: Suboutputs, components: Komponens,
+    activities: Kegiatans, indicators: Ikus,
+};
+
+const submitPengajuan = createSubmitPengajuanService({ db: Pengajuans.sequelize, pengajuans: Pengajuans, anggarans: Anggarans, pagus: Pagus, units: UnitKerjas, references, audit: recordAudit });
+const verifySubmission = createVerifyPengajuanService(Pengajuans.sequelize, Pengajuans, recordAudit);
+const resubmitSubmission = createResubmitPengajuanService({ db: Pengajuans.sequelize, pengajuans: Pengajuans, anggarans: Anggarans, pagus: Pagus, units: UnitKerjas, references, audit: recordAudit });
 
 export const resubmitPengajuan = async (req, res) => {
     try { res.status(200).json(await resubmitSubmission(req, req.body)); }
@@ -28,12 +42,22 @@ const readIncludes = [
 
 export const getPengajuans = async (req, res) => {
     try {
+        const forReport = req.query.include === 'report-items';
         const response = await Pengajuans.findAll({
             where: pengajuanScope(req, Op.in),
-            include: readIncludes,
+            include: forReport ? [...readIncludes, {
+                model: Anggarans,
+                attributes: ['id', 'nama_item', 'kode_akun', 'kode_sk', 'kode_iku', 'target_iku', 'total_nominal'],
+                include: [{ model: JenisBelanjas, attributes: ['jenis_belanja'] }],
+            }] : readIncludes,
             order: [['pengajuan_id', 'DESC']],
         });
-        res.status(200).json(response);
+        if (!forReport) return res.status(200).json(response);
+        const itemKey = Anggarans.options.name.plural;
+        res.json(response.map(record => {
+            const { [itemKey]: items, ...submission } = record.toJSON();
+            return { ...submission, items };
+        }));
     } catch (error) {
         res.status(error.status || 500).json({ msg: error.message });
     }
@@ -45,24 +69,28 @@ export const getPengajuanById = async (req, res) => {
             where: pengajuanScope(req, Op.in, req.params.id),
             include: [...readIncludes, { model: Anggarans, include: [
                 { model: MasterSatuans, attributes: ["nama_satuan"] },
-                { model: MasterAkun, attributes: ["nama_akun"] },
+                { model: Akuns, attributes: ["nama_akun"] },
             ] }],
         });
         if (!record) return res.status(404).json({ msg: 'Pengajuan tidak ditemukan dalam kewenangan akun Anda.' });
+        
         const payload = record.toJSON();
         const itemKey = Anggarans.options.name.plural;
+        
         payload.items = (payload[itemKey] || []).map(item => ({
             ...item,
             nama_satuan: item[MasterSatuans.options.name.singular]?.nama_satuan || null,
-            nama_akun: item[MasterAkun.options.name.singular]?.nama_akun || null,
+            nama_akun: item[Akuns.options.name.singular]?.nama_akun || null,
         })).sort((a, b) => a.id - b.id);
+        
         delete payload[itemKey];
         res.status(200).json(payload);
     } catch (error) {
         res.status(error.status || 500).json({ msg: error.message });
     }
 };
-// 2. Buat Pengajuan Baru beserta Item Rincian Anggarannya (Dengan Validasi Pagu & Rekap Total)
+
+// 2. Buat Pengajuan Baru beserta Item Rincian Anggarannya
 export const createPengajuan = async (req, res) => {
     try {
         const result = await submitPengajuan(req, req.body);
@@ -71,6 +99,7 @@ export const createPengajuan = async (req, res) => {
         res.status(error.status || 500).json({ msg: error.message });
     }
 };
+
 // 3. Alur Verifikasi Bertingkat
 export const verifyPengajuan = async (req, res) => {
     try {
